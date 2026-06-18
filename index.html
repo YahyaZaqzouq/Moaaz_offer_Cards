@@ -114,7 +114,8 @@
   .new-price-text .decimal { font-size: 28pt; }
   .product-name { position: absolute; left: 43.6%; top: 81.2%; width: 48.3%; height: 9.2%; display: flex; align-items: center; justify-content: center; text-align: center; }
   .product-name span { font-size: 22pt; font-weight: 900; color: #fff; line-height: 1.2; font-family: Arial, sans-serif; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  .offer-date { position: absolute; left: 3%; bottom: 10px; font-size: 17pt; font-weight: 700; color: #fff; font-family: Arial, sans-serif; direction: ltr; white-space: nowrap; z-index: 10; text-shadow: 0 0 4px #fff; }
+  .offer-date-start { position: absolute; left: 3%; bottom: 10px; font-size: 17pt; font-weight: 700; color: #fff; font-family: Arial, sans-serif; direction: ltr; white-space: nowrap; z-index: 10; text-shadow: 0 0 4px #fff; }
+  .offer-date { position: absolute; right: 3%; bottom: 10px; font-size: 17pt; font-weight: 700; color: #fff; font-family: Arial, sans-serif; direction: ltr; white-space: nowrap; z-index: 10; text-shadow: 0 0 4px #fff; }
   @media (max-width: 600px) { .upload-grid { grid-template-columns: 1fr; } .stats-bar { flex-direction: column; } }
 </style>
 </head>
@@ -203,9 +204,9 @@ const IMG_B64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAChQAAAgnCAIAAABRR
     const reader = new FileReader();
     reader.onload = ev => {
       try {
-        const wb = XLSX.read(ev.target.result, { type: 'array', cellDates: true });
+        const wb = XLSX.read(ev.target.result, { type: 'array', cellDates: false });
         const ws = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: true });
         if (key === 'inv') { invData = normalizeInv(rows); showBadge('inv', '✅ '+invData.length+' صنف'); }
         else { offData = normalizeOff(rows); showBadge('off', '✅ '+offData.length+' عرض'); }
         showMsg('', ''); checkReady();
@@ -229,6 +230,27 @@ const IMG_B64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAChQAAAgnCAIAAABRR
     return rows.map(r => ({ code: String(r[codeCol]??'').trim(), name: nameCol ? String(r[nameCol]??'').trim() : '' })).filter(r => r.code);
   }
 
+  function parseExcelDate(val) {
+    if (!val && val !== 0) return '';
+    if (typeof val === 'number') {
+      const d = new Date(Date.UTC(1899, 11, 30 + Math.floor(val)));
+      return formatUTCDate(d);
+    }
+    if (typeof val === 'string' && val.trim()) {
+      const d = new Date(val);
+      if (!isNaN(d)) return formatUTCDate(d);
+      return val.trim();
+    }
+    if (val instanceof Date) return formatUTCDate(val);
+    return String(val).trim();
+  }
+  function formatUTCDate(d) {
+    const dd = String(d.getUTCDate()).padStart(2, '0');
+    const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const yyyy = d.getUTCFullYear();
+    return dd + '-' + mm + '-' + yyyy;
+  }
+
   function normalizeOff(rows) {
     if (!rows.length) return [];
     const codeCol = findCol(rows[0], ['كود الصنف','كود','صنف','رمز','item','code','sku']);
@@ -236,8 +258,9 @@ const IMG_B64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAChQAAAgnCAIAAABRR
     const oldCol = findCol(rows[0], ['السعر القديم','سعر قديم','قديم','old price','old','سعر قبل']);
     const newCol = findCol(rows[0], ['السعر الجديد','سعر جديد','جديد','new price','new','سعر بعد','سعر العرض']);
     const dateCol = findCol(rows[0], ['تاريخ انتهاء العرض','تاريخ الانتهاء','انتهاء','expiry','end date','date']);
+    const startDateCol = findCol(rows[0], ['تاريخ بداية العرض','بداية','start date','start','تاريخ البداية']);
     if (!codeCol) throw new Error('لم يُعثر على عمود كود الصنف في ملف العروض');
-    return rows.map(r => ({ code: String(r[codeCol]??'').trim(), name: nameCol ? String(r[nameCol]??'').trim() : '', oldPrice: oldCol ? r[oldCol] : '', newPrice: newCol ? r[newCol] : '', expiry: dateCol ? r[dateCol] : '' })).filter(r => r.code);
+    return rows.map(r => ({ code: String(r[codeCol]??'').trim(), name: nameCol ? String(r[nameCol]??'').trim() : '', oldPrice: oldCol ? r[oldCol] : '', newPrice: newCol ? r[newCol] : '', expiry: dateCol ? parseExcelDate(r[dateCol]) : '', startDate: startDateCol ? parseExcelDate(r[startDateCol]) : '' })).filter(r => r.code);
   }
 
   function showBadge(key, text) { document.getElementById('badge-'+key).textContent = text; document.getElementById('card-'+key).classList.add('loaded'); }
@@ -248,7 +271,7 @@ const IMG_B64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAChQAAAgnCAIAAABRR
     matchedRows = []; let missCount = 0;
     for (const off of offData) {
       if (invMap.has(off.code)) {
-        matchedRows.push({ code: off.code, name: invMap.get(off.code) || off.name, oldPrice: off.oldPrice, newPrice: off.newPrice, expiry: off.expiry });
+        matchedRows.push({ code: off.code, name: invMap.get(off.code) || off.name, oldPrice: off.oldPrice, newPrice: off.newPrice, expiry: off.expiry, startDate: off.startDate });
       } else { missCount++; }
     }
     document.getElementById('s-inv').textContent = invData.length;
@@ -265,7 +288,7 @@ const IMG_B64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAChQAAAgnCAIAAABRR
   }
 
   function enableCardSection() {
-    products = matchedRows.map(r => ({ name: r.name, oldP: parseFloat(r.oldPrice)||0, newP: parseFloat(r.newPrice)||0, date: formatDatePlain(r.expiry) }));
+    products = matchedRows.map(r => ({ name: r.name, oldP: parseFloat(r.oldPrice)||0, newP: parseFloat(r.newPrice)||0, date: formatDatePlain(r.expiry), startDate: formatDatePlain(r.startDate) }));
     document.getElementById('card-section').style.display = 'block';
     document.getElementById('card-panel').style.display = 'block';
     document.getElementById('genBtn').disabled = false;
@@ -274,30 +297,40 @@ const IMG_B64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAChQAAAgnCAIAAABRR
   function renderTable(rows) {
     const tbody = document.getElementById('tbl-body');
     if (!rows.length) { tbody.innerHTML = '<tr><td colspan=\"6\" class=\"empty\">لا توجد نتائج</td></tr>'; return; }
-    const today = new Date(); today.setHours(0,0,0,0);
+    const today = new Date(); const todayUTC = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
     tbody.innerHTML = rows.map((r, i) => {
       const expStr = formatDate(r.expiry);
-      const expClass = getExpClass(r.expiry, today);
+      const expClass = getExpClass(r.expiry, todayUTC);
       return '<tr><td>'+(i+1)+'</td><td><b>'+esc(r.code)+'</b></td><td>'+esc(r.name)+'</td><td><span class=\"badge-price price-old\">'+esc(String(r.oldPrice))+'</span></td><td><span class=\"badge-price price-new\">'+esc(String(r.newPrice))+'</span></td><td><span class=\"badge-date '+expClass+'\">'+expStr+'</span></td></tr>';
     }).join('');
   }
 
   function formatDate(val) {
     if (!val) return '—';
-    if (val instanceof Date) return val.toLocaleDateString('ar-SA');
+    if (typeof val === 'string') return val;
+    if (val instanceof Date) return val.toLocaleDateString('ar-SA', { timeZone: 'UTC' });
     const d = new Date(val);
-    if (!isNaN(d)) return d.toLocaleDateString('ar-SA');
+    if (!isNaN(d)) return d.toLocaleDateString('ar-SA', { timeZone: 'UTC' });
     return String(val);
   }
 
   function getExpClass(val, today) {
     if (!val) return '';
-    const d = val instanceof Date ? val : new Date(val);
-    if (isNaN(d)) return '';
-    if (d < today) return 'expired';
-    const diff = (d - today) / 86400000;
-    if (diff <= 7) return 'soon';
+    const parts = val.split('-');
+    if (parts.length === 3) {
+      const d = new Date(Date.UTC(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0])));
+      if (!isNaN(d)) {
+        if (d < today) return 'expired';
+        const diff = (d - today) / 86400000;
+        if (diff <= 7) return 'soon';
+      }
+    }
     return '';
+  }
+
+  function toArabicDigits(s) {
+    const map = { '0':'0','1':'1','2':'2','3':'3','4':'4','5':'5','6':'6','7':'7','8':'8','9':'9' };
+    return String(s).replace(/\d/g, d => map[d]);
   }
 
   function esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -308,7 +341,7 @@ const IMG_B64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAChQAAAgnCAIAAABRR
   }
 
   function exportExcel() {
-    const rows = matchedRows.map(r => ({ 'كود الصنف': r.code, 'اسم الصنف': r.name, 'السعر القديم': r.oldPrice, 'السعر الجديد': r.newPrice, 'تاريخ انتهاء العرض': formatDatePlain(r.expiry) }));
+    const rows = matchedRows.map(r => ({ 'كود الصنف': r.code, 'اسم الصنف': r.name, 'السعر القديم': r.oldPrice, 'السعر الجديد': r.newPrice, 'تاريخ بداية العرض': formatDatePlain(r.startDate), 'تاريخ انتهاء العرض': formatDatePlain(r.expiry) }));
     const ws = XLSX.utils.json_to_sheet(rows, { origin: 'A1' });
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'عروض المخزون');
@@ -317,9 +350,10 @@ const IMG_B64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAChQAAAgnCAIAAABRR
 
   function formatDatePlain(val) {
     if (!val) return '';
-    if (val instanceof Date) return val.toLocaleDateString('ar-SA');
+    if (typeof val === 'string') return val;
+    if (val instanceof Date) return val.toLocaleDateString('en-GB', { timeZone: 'UTC' });
     const d = new Date(val);
-    if (!isNaN(d)) return d.toLocaleDateString('ar-SA');
+    if (!isNaN(d)) return d.toLocaleDateString('en-GB', { timeZone: 'UTC' });
     return String(val).trim();
   }
 
@@ -332,7 +366,7 @@ const IMG_B64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAChQAAAgnCAIAAABRR
     icon.classList.toggle('collapsed');
   }
 
-  /* ── Card Generator ── */
+  /* ?? Card Generator ?? */
   function cardMsg(t, err) { const el = document.getElementById('card-msg'); el.textContent = t; el.className = 'status'+(err?' err':''); }
 
   function getLayout() { return document.getElementById('layoutSel').value; }
@@ -347,7 +381,7 @@ const IMG_B64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAChQAAAgnCAIAAABRR
   function makeCard(p) {
     const div = document.createElement('div');
     div.className = 'offer-card';
-    div.innerHTML = '<img class="bg" src="'+IMG_B64+'" alt=""><div class="old-price-wrap"><span class="old-price-text">'+p.oldP.toFixed(2).split('.')[0]+'<span class="o-decimal">.'+p.oldP.toFixed(2).split('.')[1]+'</span></span></div><div class="new-price-wrap"><span class="new-price-text">'+p.newP.toFixed(2).split('.')[0]+'<span class="decimal">.'+p.newP.toFixed(2).split('.')[1]+'</span></span></div><div class="product-name"><span style="font-size:'+getFontSize()+'pt">'+esc(p.name)+'</span></div><div class="offer-date">'+(p.date?'ساري حتى '+esc(p.date):'')+'</div>';
+    div.innerHTML = '<img class="bg" src="'+IMG_B64+'" alt=""><div class="old-price-wrap"><span class="old-price-text">'+p.oldP.toFixed(2).split('.')[0]+'<span class="o-decimal">.'+p.oldP.toFixed(2).split('.')[1]+'</span></span></div><div class="new-price-wrap"><span class="new-price-text">'+p.newP.toFixed(2).split('.')[0]+'<span class="decimal">.'+p.newP.toFixed(2).split('.')[1]+'</span></span></div><div class="product-name"><span style="font-size:'+getFontSize()+'pt">'+esc(p.name)+'</span></div><div class="offer-date-start">'+(p.startDate?'يبدأ من '+esc(p.startDate):'')+'</div><div class="offer-date">'+(p.date?'ساري حتى '+esc(p.date):'')+'</div>';
     return div;
   }
 
@@ -417,8 +451,8 @@ const IMG_B64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAChQAAAgnCAIAAABRR
     const startY = nmY - lh*(lines.length-1)/2;
     lines.forEach((l,i) => ctx.fillText(l, nmX, startY+i*lh));
 
-    const dateTxt = p.date ? 'ساري حتى '+p.date : '';
-    if (dateTxt) { ctx.font='700 17pt Arial'; ctx.textAlign='left'; ctx.textBaseline='bottom'; ctx.fillStyle='#fff'; ctx.fillText(dateTxt, CW*0.03, CH-15); }
+    const startTxt = p.startDate ? 'يبدأ من '+p.startDate : ''; if (startTxt) { ctx.font='700 17pt Arial'; ctx.textAlign='left'; ctx.textBaseline='bottom'; ctx.fillStyle='#fff'; ctx.fillText(startTxt, CW*0.03, CH-15); } const dateTxt = p.date ? 'ساري حتى '+p.date : '';
+    if (dateTxt) { ctx.font='700 17pt Arial'; ctx.textAlign='right'; ctx.textBaseline='bottom'; ctx.fillStyle='#fff'; ctx.fillText(dateTxt, CW*0.97, CH-15); }
 
     return c;
   }
@@ -449,8 +483,39 @@ const IMG_B64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAChQAAAgnCAIAAABRR
       pdf.addImage(can.toDataURL('image/jpeg',0.92), 'JPEG', margin + col*(cardW+gap), margin + row*(cardH+gap), cardW, cardH);
     });
     pdf.save('عروض-صيدلية-معاذ.pdf');
-    cardMsg('✅ تم إنشاء PDF ('+perPage+' كروت لكل صفحة)');
+    cardMsg('? تم إنشاء PDF ('+perPage+' كروت لكل صفحة)');
   });
 </script>
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
