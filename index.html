@@ -347,11 +347,35 @@ let IMG_B64_DOUBLE = localStorage.getItem('img_double') || "data:image/png;base6
       const files = await res.json();
       const xlsx = files.filter(f => /\.(xlsx|xls)$/i.test(f.name));
       if (!xlsx.length) { select.innerHTML = '<option value="">لا توجد ملفات عروض في GitHub</option>'; return; }
-      select.innerHTML = '<option value="">— اختر ملف العروض —</option>' + xlsx.map(f => '<option value="' + f.download_url + '">' + f.name + '</option>').join('');
+      select.innerHTML = '<option value="">— اختر ملف العروض —</option><option value="">جاري تحميل الأوقات...</option>';
+      const options = [];
+      for (const f of xlsx) {
+        const dt = await fetchLastUpdate(f.path);
+        const label = f.name.replace(/\.[^.]+$/, '') + (dt ? '\nاخر تحديث — ' + dt : '');
+        const rawUrl = 'https://raw.githubusercontent.com/' + GITHUB_REPO + '/main/' + f.path.split('/').map(encodeURIComponent).join('/'); options.push('<option value="' + rawUrl + '">' + label + '</option>');
+      }
+      select.innerHTML = '<option value="">— اختر ملف العروض —</option>' + options.join('');
     } catch (e) {
       select.innerHTML = '<option value="">تعذر تحميل القائمة</option>';
       showMsg('error', 'تعذر الاتصال بـ GitHub. تأكد أن الريبو عام ويحتوي على مجلد offers');
     }
+  }
+
+  async function fetchLastUpdate(filePath) {
+    try {
+      const q = filePath.split('/').map(encodeURIComponent).join('/');
+      const res = await fetch('https://api.github.com/repos/' + GITHUB_REPO + '/commits?path=' + q + '&per_page=1');
+      if (!res.ok) return null;
+      const commits = await res.json();
+      if (commits && commits.length && commits[0].commit && commits[0].commit.committer) {
+        const d = new Date(commits[0].commit.committer.date);
+        if (!isNaN(d)) {
+          const pad = n => String(n).padStart(2, '0');
+          return pad(d.getDate()) + '/' + pad(d.getMonth()+1) + '/' + d.getFullYear();
+        }
+      }
+      return null;
+    } catch (e) { return null; }
   }
 
   async function loadSelectedOffer() {
