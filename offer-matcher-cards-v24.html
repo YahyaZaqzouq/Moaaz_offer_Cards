@@ -330,7 +330,7 @@ let IMG_B64_DOUBLE = localStorage.getItem('img_double') || "data:image/png;base6
     const startDateCol = findCol(rows[0], ['تاريخ بداية العرض','بداية','start date','start','تاريخ البداية']);
     const typeCol = findCol(rows[0], ['نوع العرض','type','offer type','offer type']);
     if (!codeCol) throw new Error('لم يُعثر على عمود كود الصنف في ملف العروض');
-    return rows.map(r => { const rawType = typeCol ? String(r[typeCol]??'').trim().toLowerCase() : ''; const isQty = rawType === 'كمية' || rawType === 'quantity' || rawType === 'qty'; const isDouble = rawType === 'حبتين' || rawType === 'double' || rawType === '2'; return { code: String(r[codeCol]??'').trim(), name: nameCol ? String(r[nameCol]??'').trim() : '', oldPrice: oldCol ? r[oldCol] : '', newPrice: newCol ? r[newCol] : '', expiry: dateCol ? parseExcelDate(r[dateCol]) : '', startDate: startDateCol ? parseExcelDate(r[startDateCol]) : '', offerType: isDouble ? 'double' : (isQty ? 'quantity' : 'discount'), offerText: isQty ? String(r[newCol]??'').trim() : '' }; }).filter(r => r.code);
+    return rows.map(r => { const rawType = typeCol ? String(r[typeCol]??'').trim().toLowerCase() : ''; const rawNew = (newCol ? String(r[newCol]??'') : '').trim(); const numNew = parseFloat(rawNew); const isQty = rawType === 'كمية' || rawType === 'quantity' || rawType === 'qty' || (rawNew && isNaN(numNew) && rawNew.includes('+')); const isDouble = rawType === 'حبتين' || rawType === 'double' || rawType === '2'; return { code: String(r[codeCol]??'').trim(), name: nameCol ? String(r[nameCol]??'').trim() : '', oldPrice: oldCol ? r[oldCol] : '', newPrice: newCol ? r[newCol] : '', expiry: dateCol ? parseExcelDate(r[dateCol]) : '', startDate: startDateCol ? parseExcelDate(r[startDateCol]) : '', offerType: isDouble ? 'double' : (isQty ? 'quantity' : 'discount'), offerText: isQty ? rawNew : '' }; }).filter(r => r.code);
   }
 
   function showBadge(key, text) { document.getElementById('badge-'+key).textContent = text; document.getElementById('card-'+key).classList.add('loaded'); }
@@ -347,7 +347,7 @@ let IMG_B64_DOUBLE = localStorage.getItem('img_double') || "data:image/png;base6
       const files = await res.json();
       const xlsx = files.filter(f => /\.(xlsx|xls)$/i.test(f.name));
       if (!xlsx.length) { select.innerHTML = '<option value="">لا توجد ملفات عروض في GitHub</option>'; return; }
-      select.innerHTML = '<option value="">— اختر ملف العروض —</option>' + xlsx.map(f => '<option value="' + f.name + '">' + f.name + '</option>').join('');
+      select.innerHTML = '<option value="">— اختر ملف العروض —</option>' + xlsx.map(f => '<option value="' + f.download_url + '">' + f.name + '</option>').join('');
     } catch (e) {
       select.innerHTML = '<option value="">تعذر تحميل القائمة</option>';
       showMsg('error', 'تعذر الاتصال بـ GitHub. تأكد أن الريبو عام ويحتوي على مجلد offers');
@@ -356,14 +356,14 @@ let IMG_B64_DOUBLE = localStorage.getItem('img_double') || "data:image/png;base6
 
   async function loadSelectedOffer() {
     const select = document.getElementById('offer-select');
-    const fname = select.value;
+    const url = select.value;
     offData = null;
     document.getElementById('card-off').classList.remove('loaded');
     document.getElementById('badge-off').textContent = 'اختر ملف العروض';
-    if (!fname) { checkReady(); return; }
+    if (!url) { checkReady(); return; }
     try {
       document.getElementById('badge-off').textContent = 'جاري التحميل...';
-      const res = await fetch('https://raw.githubusercontent.com/' + GITHUB_REPO + '/main/' + OFFERS_FOLDER + '/' + encodeURIComponent(fname));
+      const res = await fetch(url);
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const buf = await res.arrayBuffer();
       const wb = XLSX.read(buf, { type: 'array', cellDates: false });
@@ -405,7 +405,7 @@ let IMG_B64_DOUBLE = localStorage.getItem('img_double') || "data:image/png;base6
     products = matchedRows.map(r => {
       let oldP = parseFloat(r.oldPrice)||0;
       let newP = parseFloat(r.newPrice)||0;
-      if (r.offerType === 'double') { oldP = oldP * 2; }
+      if (r.offerType === 'double') { oldP = oldP * 2; newP = newP * 2; }
       if (r.offerType === 'quantity' && r.offerText) {
         if (r.offerText.includes('1+2')) oldP *= 2;
         else if (r.offerText.includes('1+3')) oldP *= 3;
