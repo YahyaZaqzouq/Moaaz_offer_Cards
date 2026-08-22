@@ -447,6 +447,7 @@ let IMG_B64_DOUBLE = localStorage.getItem('img_double') || "data:image/png;base6
     products = matchedRows.map(r => {
       let oldP = parseFloat(r.oldPrice)||0;
       let newP = parseFloat(r.newPrice)||0;
+      if (r.offerType === 'double') { oldP = oldP * 2; }
       if (r.offerType === 'quantity' && r.offerText) {
         const m = String(r.offerText).match(/(\d+)\s*\+\s*(\d+)/);
         if (m) { const mult = parseInt(m[2], 10) || 1; oldP = oldP * mult; newP = newP * mult; }
