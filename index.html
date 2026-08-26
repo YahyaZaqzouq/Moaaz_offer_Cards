@@ -136,6 +136,15 @@
   .preview-section.visible { display: block; }
   .prev-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 8px; }
   .prev-header h3 { font-size: 17px; color: #1e3a5f; }
+  .sel-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .sel-btn { border: 2px solid #1e3a5f; background: #fff; color: #1e3a5f; font-family: inherit; font-size: 12.5px; font-weight: 700; padding: 6px 14px; border-radius: 8px; cursor: pointer; transition: all .15s; }
+  .sel-btn:hover { background: #eff6ff; }
+  .sel-btn.active { background: #1e3a5f; color: #fff; }
+  .sel-count { font-size: 13px; font-weight: 700; color: #16a34a; min-width: 70px; }
+  .cards-grid.sel-mode .offer-card { cursor: pointer; }
+  .offer-card .sel-badge { position: absolute; top: 12px; left: 12px; width: 44px; height: 44px; border-radius: 50%; background: #16a34a; color: #fff; font-size: 24px; font-weight: 700; display: none; align-items: center; justify-content: center; z-index: 9; border: 3px solid #fff; box-shadow: 0 2px 10px rgba(0,0,0,.3); }
+  .offer-card.selected-card { outline: 6px solid #16a34a; outline-offset: -6px; }
+  .offer-card.selected-card .sel-badge { display: flex; }
   .cards-grid { display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; max-width: 100%; }
   .offer-card { position: relative; width: 860px; height: 696px; flex-shrink: 0; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.12); border: 1.5px dashed #fff; }
   .offer-card img.bg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: fill; display: block; }
@@ -260,7 +269,7 @@
   <div class="status" id="card-msg"></div>
 </div>
 <div class="preview-section" id="preview-section">
-  <div class="prev-header"><h3 id="prev-title">معاينة الكروت</h3></div>
+  <div class="prev-header"><h3 id="prev-title">معاينة الكروت</h3><div class="sel-tools" id="sel-tools" style="display:none"><button type="button" class="sel-btn" id="sel-toggle">☑ تحديد كروت</button><button type="button" class="sel-btn" id="sel-all-btn" style="display:none">تحديد الكل / إلغاء الكل</button><span class="sel-count" id="sel-count"></span></div></div>
   <div class="cards-grid" id="grid"></div>
 </div>
 <script>
@@ -611,16 +620,60 @@ let IMG_B64_DOUBLE = localStorage.getItem('img_double') || "data:image/png;base6
     return div;
   }
 
+  let currentItems = [];
+  let selMode = false;
+  const selSet = new Set();
+
   document.getElementById('genBtn').addEventListener('click', () => {
     const items = getFilteredProducts();
     if (!items.length) { cardMsg('لا توجد منتجات في النطاق المحدد', true); return; }
+    currentItems = items;
+    selMode = false; selSet.clear();
+    document.getElementById('sel-toggle').classList.remove('active');
+    document.getElementById('sel-all-btn').style.display = 'none';
+    document.getElementById('grid').classList.remove('sel-mode');
+    updateSelCount();
     const grid = document.getElementById('grid');
     grid.innerHTML = '';
-    items.forEach(p => grid.appendChild(makeCard(p)));
+    items.forEach((p, i) => {
+      const d = makeCard(p);
+      d.dataset.idx = i;
+      d.insertAdjacentHTML('beforeend', '<div class="sel-badge">✓</div>');
+      grid.appendChild(d);
+    });
+    document.getElementById('sel-tools').style.display = 'flex';
     document.getElementById('prev-title').textContent = 'معاينة الكروت ('+items.length+' منتج)';
     document.getElementById('preview-section').classList.add('visible');
     document.getElementById('pdfBtn').style.display = 'inline-block';
     document.getElementById('preview-section').scrollIntoView({behavior:'smooth'});
+  });
+
+  function updateSelCount() {
+    document.getElementById('sel-count').textContent = selMode && selSet.size ? 'محدد: ' + selSet.size : '';
+  }
+  function setSelMode(on) {
+    selMode = on;
+    document.getElementById('grid').classList.toggle('sel-mode', on);
+    document.getElementById('sel-toggle').classList.toggle('active', on);
+    document.getElementById('sel-all-btn').style.display = on ? 'inline-block' : 'none';
+    if (!on) { selSet.clear(); document.querySelectorAll('.offer-card.selected-card').forEach(c => c.classList.remove('selected-card')); }
+    updateSelCount();
+  }
+  document.getElementById('sel-toggle').addEventListener('click', () => setSelMode(!selMode));
+  document.getElementById('sel-all-btn').addEventListener('click', () => {
+    const cards = document.querySelectorAll('#grid .offer-card');
+    if (selSet.size === cards.length) { selSet.clear(); cards.forEach(c => c.classList.remove('selected-card')); }
+    else { selSet.clear(); cards.forEach(c => { selSet.add(+c.dataset.idx); c.classList.add('selected-card'); }); }
+    updateSelCount();
+  });
+  document.getElementById('grid').addEventListener('click', e => {
+    if (!selMode) return;
+    const card = e.target.closest('.offer-card');
+    if (!card) return;
+    const idx = +card.dataset.idx;
+    if (selSet.has(idx)) { selSet.delete(idx); card.classList.remove('selected-card'); }
+    else { selSet.add(idx); card.classList.add('selected-card'); }
+    updateSelCount();
   });
 
   function renderCardCanvas(p, bgImg) {
@@ -702,7 +755,7 @@ let IMG_B64_DOUBLE = localStorage.getItem('img_double') || "data:image/png;base6
     cardMsg('جاري إنشاء PDF...');
     const bgImg = await loadBg(); const bgBonusImg = await loadBg('bonus'); const bgDoubleImg = await loadBg('double'); await loadFonts();
     const layout = getLayout();
-    const items = getFilteredProducts();
+    const items = (selMode && selSet.size) ? currentItems.filter((p, i) => selSet.has(i)) : getFilteredProducts();
     if (!items.length) { cardMsg('لا توجد منتجات في النطاق المحدد', true); return; }
     const { jsPDF } = window.jspdf;
     const layoutInfo = { landscape6: { perPage:6, cols:3, rows:2, orient:'landscape', pageW:297, pageH:210 }, landscape4: { perPage:4, cols:2, rows:2, orient:'landscape', pageW:297, pageH:210 }, landscape9: { perPage:9, cols:3, rows:3, orient:'landscape', pageW:297, pageH:210 } };
@@ -721,7 +774,7 @@ let IMG_B64_DOUBLE = localStorage.getItem('img_double') || "data:image/png;base6
       pdf.addImage(can.toDataURL('image/jpeg',0.92), 'JPEG', margin + col*(cardW+gap), margin + row*(cardH+gap), cardW, cardH);
     });
     pdf.save('عروض-صيدلية-معاذ.pdf');
-    cardMsg('✅ تم إنشاء PDF ('+perPage+' كروت لكل صفحة)');
+    cardMsg('✅ تم إنشاء PDF ('+items.length+' كروت — '+perPage+' لكل صفحة)');
   });
 
   loadOfferList();
