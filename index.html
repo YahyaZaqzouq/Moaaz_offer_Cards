@@ -315,7 +315,7 @@ let IMG_B64_DOUBLE = localStorage.getItem('img_double') || "data:image/png;base6
     const codeCol = findCol(rows[0], ['صنف','كود','كود الصنف','رمز','item','code','sku','product ref','ref','reference']);
     const nameCol = findCol(rows[0], ['أسم الصنف','اسم الصنف','اسم','name','الصنف','product','product name']);
     if (!codeCol) throw new Error('لم يُعثر على عمود كود الصنف في ملف المخزون');
-    return rows.map(r => ({ code: String(r[codeCol]??'').trim().padStart(8, '0'), name: nameCol ? String(r[nameCol]??'').trim() : '' })).filter(r => r.code);
+    return rows.map(r => ({ code: String(r[codeCol]??'').trim().replace(/^0+/,''), name: nameCol ? String(r[nameCol]??'').trim() : '' })).filter(r => r.code);
   }
 
   function parseExcelDate(val) {
@@ -349,7 +349,7 @@ let IMG_B64_DOUBLE = localStorage.getItem('img_double') || "data:image/png;base6
     const startDateCol = findCol(rows[0], ['تاريخ بداية العرض','بداية','start date','start','تاريخ البداية']);
     const typeCol = findCol(rows[0], ['نوع العرض','type','offer type','offer type']);
     if (!codeCol) throw new Error('لم يُعثر على عمود كود الصنف في ملف العروض');
-    return rows.map(r => { const rawType = typeCol ? String(r[typeCol]??'').trim().toLowerCase() : ''; const rawNew = (newCol ? String(r[newCol]??'') : '').trim(); const numNew = parseFloat(rawNew); const isQty = rawType === 'كمية' || rawType === 'quantity' || rawType === 'qty' || (rawNew && isNaN(numNew) && rawNew.includes('+')); const isDouble = rawType === 'حبتين' || rawType === 'double' || rawType === '2'; return { code: String(r[codeCol]??'').trim(), name: nameCol ? String(r[nameCol]??'').trim() : '', oldPrice: oldCol ? r[oldCol] : '', newPrice: newCol ? r[newCol] : '', expiry: dateCol ? parseExcelDate(r[dateCol]) : '', startDate: startDateCol ? parseExcelDate(r[startDateCol]) : '', offerType: isDouble ? 'double' : (isQty ? 'quantity' : 'discount'), offerText: isQty ? rawNew : '' }; }).filter(r => r.code);
+    return rows.map(r => { const rawType = typeCol ? String(r[typeCol]??'').trim().toLowerCase() : ''; const rawNew = (newCol ? String(r[newCol]??'') : '').trim(); const numNew = parseFloat(rawNew); const isQty = rawType === 'كمية' || rawType === 'quantity' || rawType === 'qty' || (rawNew && isNaN(numNew) && rawNew.includes('+')); const isDouble = rawType === 'حبتين' || rawType === 'double' || rawType === '2'; return { code: String(r[codeCol]??'').trim().replace(/^0+/,''), name: nameCol ? String(r[nameCol]??'').trim() : '', oldPrice: oldCol ? r[oldCol] : '', newPrice: newCol ? r[newCol] : '', expiry: dateCol ? parseExcelDate(r[dateCol]) : '', startDate: startDateCol ? parseExcelDate(r[startDateCol]) : '', offerType: isDouble ? 'double' : (isQty ? 'quantity' : 'discount'), offerText: isQty ? rawNew : '' }; }).filter(r => r.code);
   }
 
   function showBadge(key, text) { document.getElementById('badge-'+key).textContent = text; document.getElementById('card-'+key).classList.add('loaded'); }
