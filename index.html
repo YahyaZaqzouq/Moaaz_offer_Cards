@@ -411,9 +411,9 @@ let IMG_B64_DOUBLE = localStorage.getItem('img_double') || DEFAULT_DOUBLE;
   const GITHUB_REPO = 'YahyaZaqzouq/Moaaz_offer_Cards';
 
   function refreshCategoryImages() {
-    IMG_B64 = localStorage.getItem(catImgKey('discount')) || localStorage.getItem('img_discount') || DEFAULT_IMG_DISCOUNT;
-    IMG_B64_BONUS = localStorage.getItem(catImgKey('bonus')) || localStorage.getItem('img_bonus') || DEFAULT_IMG_BONUS;
-    IMG_B64_DOUBLE = localStorage.getItem(catImgKey('double')) || localStorage.getItem('img_double') || DEFAULT_IMG_DOUBLE;
+    IMG_B64 = localStorage.getItem(catImgKey('discount')) || localStorage.getItem('img_discount') || DEFAULT_DISCOUNT;
+    IMG_B64_BONUS = localStorage.getItem(catImgKey('bonus')) || localStorage.getItem('img_bonus') || DEFAULT_BONUS;
+    IMG_B64_DOUBLE = localStorage.getItem(catImgKey('double')) || localStorage.getItem('img_double') || DEFAULT_DOUBLE;
   }
   function applyCategory() {
     refreshCategoryImages();
