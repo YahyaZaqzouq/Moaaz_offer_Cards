@@ -2,8 +2,8 @@
   "clr_oldprice": "#000000",
   "clr_newprice": "#ffffff",
   "clr_name": "#ffffff",
-  "hasDiscount": false,
+  "hasDiscount": true,
   "hasBonus": true,
   "hasDouble": true,
-  "updatedAt": 1788397649456
+  "updatedAt": 1788397716861
 }
